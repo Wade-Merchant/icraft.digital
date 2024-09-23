@@ -1,1 +1,108 @@
-soon
+import SwiftUI
+import UserNotifications
+
+struct ContentView: View {
+    @State private var days: String = ""
+    @State private var hours: String = ""
+    @State private var minutes: String = ""
+    @State private var phoneNumber: String = ""
+    @State private var timerSet = false
+    @State private var countdown: Int = 0
+    
+    var body: some View {
+        VStack {
+            TextField("Дни", text: $days)
+                .keyboardType(.numberPad)
+                .padding()
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+            TextField("Часы", text: $hours)
+                .keyboardType(.numberPad)
+                .padding()
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+            TextField("Минуты", text: $minutes)
+                .keyboardType(.numberPad)
+                .padding()
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+            TextField("Номер телефона (WhatsApp)", text: $phoneNumber)
+                .keyboardType(.phonePad)
+                .padding()
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+            Button(action: setTimer) {
+                Text("Установить таймер")
+                    .foregroundColor(.white)
+                    .padding()
+                    .background(Color.blue)
+                    .cornerRadius(8)
+            }
+            .padding()
+        }
+        .padding()
+        .alert(isPresented: $timerSet) {
+            Alert(title: Text("Таймер установлен"),
+                  message: Text("Таймер настроен и запущен"),
+                  dismissButton: .default(Text("ОК"), action: startTimer))
+        }
+    }
+    
+    func setTimer() {
+        guard let daysInt = Int(days),
+              let hoursInt = Int(hours),
+              let minutesInt = Int(minutes) else {
+            return
+        }
+        
+        countdown = (daysInt * 86400) + (hoursInt * 3600) + (minutesInt * 60)
+        
+        if countdown > 0 && !phoneNumber.isEmpty {
+            timerSet = true
+        }
+    }
+    
+    func startTimer() {
+        DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(countdown)) {
+            askQuestion()
+        }
+    }
+    
+    func askQuestion() {
+        DispatchQueue.main.async {
+            let alert = UIAlertController(title: "Вопрос", message: "С Вами сейчас все хорошо?", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "Я в порядке", style: .default, handler: { _ in
+                startTimer()
+            }))
+            
+            UIApplication.shared.windows.first?.rootViewController?.present(alert, animated: true, completion: nil)
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+                if alert.isBeingPresented {
+                    alert.dismiss(animated: true, completion: {
+                        sendWhatsAppMessage()
+                    })
+                }
+            }
+        }
+    }
+    
+    func sendWhatsAppMessage() {
+        let accountSid = "***" 'в Заметках'
+        let authToken = "7e246c4e42da2beb7b705e99c22a49d9"
+        let client = TwilioRestClient(accountSid: accountSid, authToken: authToken)
+        
+        let message = client.messages.create(
+            from: "whatsapp:+14155238886",
+            to: phoneNumber,
+            body: "В приложении SAVE не нажали на кнопку 'Я в порядке'. Свяжитесь с вашим другом."
+        )
+        
+        print("Сообщение отправлено: \(message.sid)")
+        DispatchQueue.main.async {
+            let alert = UIAlertController(title: "Сообщение отправлено", message: "Вашему другу отправлено сообщение, что Вы не в порядке", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "ОК", style: .default, handler: nil))
+            UIApplication.shared.windows.first?.rootViewController?.present(alert, animated: true, completion: nil)
+        }
+    }
+}
